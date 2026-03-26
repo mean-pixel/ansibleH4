@@ -1,0 +1,49 @@
+- name: Deploy Semaphore på Docker-server
+  hosts: docker
+  become: true
+  collections:
+    - community.docker
+
+  vars:
+    semaphore_dir: /opt/semaphore
+    semaphore_port: 3010
+    semaphore_image: semaphoreui/semaphore:latest
+
+    semaphore_admin: admin
+    semaphore_admin_password: "Passw0rd"
+    semaphore_admin_name: "Admin"
+    semaphore_admin_email: "admin@example.com"
+
+  tasks:
+    - name: Sørg for at Semaphore-mappen findes
+      ansible.builtin.file:
+        path: "{{ semaphore_dir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Sørg for at data-mappen findes med korrekte permissions
+      ansible.builtin.file:
+        path: "{{ semaphore_dir }}/data"
+        state: directory
+        owner: "1001"
+        group: "1001"
+        mode: "0755"
+
+    - name: Sørg for korrekte permissions på eksisterende filer i data-mappen
+      ansible.builtin.file:
+        path: "{{ semaphore_dir }}/data"
+        owner: "1001"
+        group: "1001"
+        recurse: true
+
+    - name: Læg compose-fil på serveren
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/../templates/semaphore-compose.yml.j2"
+        dest: "{{ semaphore_dir }}/compose.yml"
+        mode: "0644"
+
+    - name: Start Semaphore med Docker Compose v2
+      community.docker.docker_compose_v2:
+        project_src: "{{ semaphore_dir }}"
+        state: present
+        pull: always

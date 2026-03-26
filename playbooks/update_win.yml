@@ -1,0 +1,30 @@
+---
+- name: Opdater Windows maskiner
+  hosts: windows
+  gather_facts: false
+
+  tasks:
+    - name: Find updates
+      ansible.windows.win_updates:
+        state: searched
+      register: updates
+
+    - name: Vis antal updates
+      debug:
+        msg: "Der er {{ updates.found_update_count }} updates"
+
+    - name: Installer Windows updates
+      ansible.windows.win_updates:
+        category_names:
+          - DefinitionUpdates
+          - SecurityUpdates
+          - CriticalUpdates
+          - UpdateRollups
+          - FeaturePacks
+          - Updates
+        reboot: true
+      register: install_result
+
+    - name: Vis resultat
+      debug:
+        var: install_result

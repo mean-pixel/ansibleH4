@@ -1,0 +1,12 @@
+---
+- name: Opdater alle Ubuntu-servere
+  hosts: Ubuntu
+  become: true
+
+  tasks:
+    - name: Opdater apt cache og opgrader pakker
+      apt:
+        update_cache: yes
+        upgrade: dist
+        autoremove: yes
+        autoclean: yes

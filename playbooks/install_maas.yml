@@ -1,0 +1,50 @@
+---
+- name: Install and initialize MAAS on localhost
+  hosts: maas
+  become: yes
+
+  vars:
+    maas_mode: "region+rack"
+    maas_db_uri: "maas-test-db:///"
+    maas_url: "http://127.0.0.1:5240/MAAS"
+
+  tasks:
+    - name: Update apt cache
+      ansible.builtin.apt:
+        update_cache: yes
+
+    - name: Ensure snapd is installed
+      ansible.builtin.apt:
+        name: snapd
+        state: present
+
+    - name: Install community.general collection note
+      ansible.builtin.debug:
+        msg: "Hvis community.general mangler, kør: ansible-galaxy collection install community.general"
+
+    - name: Install maas-test-db snap
+      community.general.snap:
+        name: maas-test-db
+        state: present
+
+    - name: Install MAAS snap
+      community.general.snap:
+        name: maas
+        state: present
+
+    - name: Check whether MAAS is already initialized
+      ansible.builtin.stat:
+        path: /var/snap/maas/common/maas/regiond.conf
+      register: maas_regiond_conf
+
+    - name: Initialize MAAS in region+rack mode
+      ansible.builtin.command:
+        cmd: "maas init {{ maas_mode }} --database-uri {{ maas_db_uri }} --maas-url {{ maas_url }}"
+      when: not maas_regiond_conf.stat.exists
+      register: maas_init_result
+      changed_when: maas_init_result.rc == 0
+
+    - name: Show MAAS init output
+      ansible.builtin.debug:
+        var: maas_init_result.stdout_lines
+      when: maas_init_result is defined

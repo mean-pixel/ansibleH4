@@ -1,0 +1,265 @@
+---
+- name: Install LibreNMS on Ubuntu
+  hosts: librenms
+  become: true
+
+  vars:
+    php_fpm_service: php8.3-fpm
+    librenms_user: librenms
+    librenms_group: librenms
+    librenms_dir: /opt/librenms
+    librenms_db_name: librenms
+    librenms_db_user: librenms
+    librenms_db_pass: "Passw0rd"
+    server_name: 192.168.7.157
+
+  tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Install required packages
+      apt:
+        name:
+          - acl
+          - curl
+          - fping
+          - git
+          - graphviz
+          - imagemagick
+          - mariadb-client
+          - mariadb-server
+          - mtr-tiny
+          - nginx-full
+          - nmap
+          - php-cli
+          - php-curl
+          - php-fpm
+          - php-gd
+          - php-gmp
+          - php-mbstring
+          - php-mysql
+          - php-snmp
+          - php-xml
+          - php-zip
+          - python3-command-runner
+          - python3-dotenv
+          - python3-pymysql
+          - python3-redis
+          - python3-setuptools
+          - python3-systemd
+          - rrdtool
+          - snmp
+          - snmpd
+          - unzip
+          - whois
+        state: present
+
+    - name: Ensure LibreNMS group exists
+      group:
+        name: "{{ librenms_group }}"
+        state: present
+
+    - name: Ensure LibreNMS user exists
+      user:
+        name: "{{ librenms_user }}"
+        group: "{{ librenms_group }}"
+        home: "{{ librenms_dir }}"
+        system: true
+        create_home: false
+        shell: /bin/bash
+
+    - name: Allow git safe directory for LibreNMS
+      command: git config --global --add safe.directory /opt/librenms
+      become: true
+
+    - name: Clone LibreNMS
+      git:
+        repo: https://github.com/librenms/librenms.git
+        dest: "{{ librenms_dir }}"
+        version: master
+      register: librenms_git
+
+    - name: Set ownership on LibreNMS dir
+      file:
+        path: "{{ librenms_dir }}"
+        owner: "{{ librenms_user }}"
+        group: "{{ librenms_group }}"
+        recurse: true
+
+    - name: Set directory permissions
+      file:
+        path: "{{ librenms_dir }}"
+        mode: "0771"
+        state: directory
+
+    - name: Create required LibreNMS directories
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: "{{ librenms_user }}"
+        group: "{{ librenms_group }}"
+        mode: "0775"
+      loop:
+        - "{{ librenms_dir }}/logs"
+        - "{{ librenms_dir }}/rrd"
+        - "{{ librenms_dir }}/storage"
+        - "{{ librenms_dir }}/bootstrap/cache"
+
+    - name: Set ACLs on LibreNMS writable dirs
+      command: >
+        setfacl -R -m u:{{ librenms_user }}:rwx -m g:{{ librenms_group }}:rwx {{ item }}
+      loop:
+        - "{{ librenms_dir }}/logs"
+        - "{{ librenms_dir }}/rrd"
+        - "{{ librenms_dir }}/storage"
+        - "{{ librenms_dir }}/bootstrap/cache"
+      changed_when: true
+
+    - name: Set default ACLs on LibreNMS writable dirs
+      command: >
+        setfacl -d -R -m u:{{ librenms_user }}:rwx -m g:{{ librenms_group }}:rwx {{ item }}
+      loop:
+        - "{{ librenms_dir }}/logs"
+        - "{{ librenms_dir }}/rrd"
+        - "{{ librenms_dir }}/storage"
+        - "{{ librenms_dir }}/bootstrap/cache"
+      changed_when: true
+
+    - name: Install PHP dependencies with composer wrapper
+      command: "{{ librenms_dir }}/scripts/composer_wrapper.php install --no-dev"
+      become_user: "{{ librenms_user }}"
+      args:
+        chdir: "{{ librenms_dir }}"
+      changed_when: false
+
+    - name: Copy SNMPD example config
+      copy:
+        remote_src: true
+        src: "{{ librenms_dir }}/snmpd.conf.example"
+        dest: /etc/snmp/snmpd.conf
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: Install distro helper
+      get_url:
+        url: https://raw.githubusercontent.com/librenms/librenms-agent/master/snmp/distro
+        dest: /usr/bin/distro
+        mode: "0755"
+
+    - name: Ensure MariaDB is running
+      service:
+        name: mariadb
+        state: started
+        enabled: true
+
+    - name: Create LibreNMS database
+      community.mysql.mysql_db:
+        name: "{{ librenms_db_name }}"
+        state: present
+        login_unix_socket: /run/mysqld/mysqld.sock
+
+    - name: Create LibreNMS DB user
+      community.mysql.mysql_user:
+        name: "{{ librenms_db_user }}"
+        password: "{{ librenms_db_pass }}"
+        priv: "{{ librenms_db_name }}.*:ALL"
+        host: localhost
+        state: present
+        login_unix_socket: /run/mysqld/mysqld.sock
+
+    - name: Create LibreNMS SQL mode config
+      copy:
+        dest: /etc/mysql/mariadb.conf.d/60-librenms.cnf
+        content: |
+          [mysqld]
+          innodb_file_per_table=1
+          lower_case_table_names=0
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Restart MariaDB
+
+    - name: Deploy Nginx config for LibreNMS
+      copy:
+        dest: /etc/nginx/sites-available/librenms
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          server {
+              listen 80;
+              server_name {{ server_name }};
+              root {{ librenms_dir }}/html;
+              index index.php;
+
+              charset utf-8;
+              gzip on;
+              gzip_types text/css application/javascript text/javascript application/x-javascript image/svg+xml text/plain text/xsd text/xsl text/xml image/x-icon;
+              location / {
+                  try_files $uri $uri/ /index.php?$query_string;
+              }
+
+              location ~ [^/]\.php(/|$) {
+                  fastcgi_pass unix:/run/php/php8.3-fpm.sock;
+                  fastcgi_split_path_info ^(.+\.php)(/.+)$;
+                  include fastcgi.conf;
+              }
+
+              location ~ /\.(?!well-known).* {
+                  deny all;
+              }
+          }
+      notify: Restart Nginx
+
+    - name: Enable LibreNMS site
+      file:
+        src: /etc/nginx/sites-available/librenms
+        dest: /etc/nginx/sites-enabled/librenms
+        state: link
+      notify: Restart Nginx
+
+    - name: Disable default Nginx site
+      file:
+        path: /etc/nginx/sites-enabled/default
+        state: absent
+      notify: Restart Nginx
+
+    - name: Ensure PHP-FPM is running
+      service:
+        name: "{{ php_fpm_service }}"
+        state: started
+        enabled: true
+
+    - name: Ensure Nginx is running
+      service:
+        name: nginx
+        state: started
+        enabled: true
+
+    - name: Ensure SNMPD is running
+      service:
+        name: snmpd
+        state: started
+        enabled: true
+
+    - name: Create LibreNMS validation marker
+      copy:
+        dest: /root/librenms-ansible-installed.ok
+        content: "LibreNMS installed by Ansible\n"
+        owner: root
+        group: root
+        mode: "0644"
+
+  handlers:
+    - name: Restart MariaDB
+      service:
+        name: mariadb
+        state: restarted
+
+    - name: Restart Nginx
+      service:
+        name: nginx
+        state: restarted

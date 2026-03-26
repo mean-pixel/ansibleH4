@@ -1,0 +1,15 @@
+---
+- name: Opret bruger (med eller uden sudo)
+  hosts: Ubuntu
+  become: true
+
+  tasks:
+    - name: Opret bruger
+      user:
+        name: "{{ username }}"
+        password: "{{ plain_password | password_hash('sha512') }}"
+        shell: /bin/bash
+        create_home: true
+        groups: "{{ 'sudo' if sudo_user else omit }}"
+        append: true
+        state: present

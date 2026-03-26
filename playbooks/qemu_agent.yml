@@ -1,0 +1,17 @@
+---
+- name: Installer og start QEMU Guest Agent på Ubuntu-servere
+  hosts: Ubuntu
+  become: true
+
+  tasks:
+    - name: Installer qemu-guest-agent
+      apt:
+        name: qemu-guest-agent
+        state: present
+        update_cache: true
+
+    - name: Sørg for at qemu-guest-agent er enabled og startet
+      systemd:
+        name: qemu-guest-agent
+        enabled: true
+        state: started
