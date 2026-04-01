@@ -1,5 +1,5 @@
 - name: Test connectivity
-  hosts: all
+  hosts: ubuntu:docker:librenms:maas
   gather_facts: false
 
   tasks:
