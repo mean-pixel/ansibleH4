@@ -1,0 +1,35 @@
+- name: Deploy test pods
+  hosts: k3s_server
+  become: true
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  vars:
+    replicas: 50 
+
+  tasks:
+    - name: Apply deployment
+      copy:
+        dest: /tmp/nginx-test.yaml
+        content: |
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: nginx-test
+          spec:
+            replicas: {{ replicas }}
+            selector:
+              matchLabels:
+                app: nginx-test
+            template:
+              metadata:
+                labels:
+                  app: nginx-test
+              spec:
+                containers:
+                  - name: nginx
+                    image: nginx:stable
+                    ports:
+                      - containerPort: 80
+
+    - name: Apply to cluster
+      command: kubectl apply -f /tmp/nginx-test.yaml
