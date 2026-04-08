@@ -1,0 +1,52 @@
+- name: Install Rancher on k3s
+  hosts: k3s_server
+  become: true
+  vars:
+    rancher_hostname: rancher.local
+
+  tasks:
+    - name: Install Helm
+      shell: |
+        curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+      args:
+        creates: /usr/local/bin/helm
+
+    - name: Add Helm repos
+      shell: |
+        helm repo add jetstack https://charts.jetstack.io
+        helm repo add rancher-stable https://releases.rancher.com/server-charts/stable
+        helm repo update
+      changed_when: false
+
+    - name: Create cert-manager namespace
+      command: kubectl create namespace cert-manager
+      register: cert_ns
+      failed_when: cert_ns.rc not in [0,1]
+      changed_when: cert_ns.rc == 0
+
+    - name: Install cert-manager
+      command: >
+        helm upgrade --install cert-manager jetstack/cert-manager
+        --namespace cert-manager
+        --set crds.enabled=true
+
+    - name: Wait for cert-manager
+      shell: kubectl rollout status deploy/cert-manager -n cert-manager
+      register: cm_status
+      retries: 10
+      delay: 10
+      until: cm_status.rc == 0
+      changed_when: false
+
+    - name: Create cattle-system namespace
+      command: kubectl create namespace cattle-system
+      register: cattle_ns
+      failed_when: cattle_ns.rc not in [0,1]
+      changed_when: cattle_ns.rc == 0
+
+    - name: Install Rancher
+      command: >
+        helm upgrade --install rancher rancher-stable/rancher
+        --namespace cattle-system
+        --set hostname={{ rancher_hostname }}
+        --set replicas=1
