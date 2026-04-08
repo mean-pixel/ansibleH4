@@ -2,7 +2,7 @@
   hosts: k3s_server
   become: true
   vars:
-    rancher_hostname: rancher.local
+    rancher_hostname: rancher.mette.mem.dk
 
   tasks:
     - name: Install Helm
