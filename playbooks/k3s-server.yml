@@ -1,0 +1,19 @@
+- name: Install first k3s server
+  hosts: k3s_server
+  become: true
+  tasks:
+    - name: Install k3s server
+      shell: |
+        curl -sfL https://get.k3s.io | \
+        INSTALL_K3S_EXEC="server --write-kubeconfig-mode 644" sh -
+      args:
+        creates: /etc/rancher/k3s/k3s.yaml
+
+    - name: Read node token
+      slurp:
+        src: /var/lib/rancher/k3s/server/node-token
+      register: k3s_token_raw
+
+    - name: Save token as host fact
+      set_fact:
+        k3s_join_token: "{{ k3s_token_raw.content | b64decode | trim }}"
