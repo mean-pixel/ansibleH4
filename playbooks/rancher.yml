@@ -4,6 +4,9 @@
   vars:
     rancher_hostname: rancher.mette.mem.dk
 
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+
   tasks:
     - name: Install Helm
       shell: |
