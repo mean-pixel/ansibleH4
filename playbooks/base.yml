@@ -1,0 +1,21 @@
+- name: Base prep
+  hosts: k3s_cluster
+  become: true
+  tasks:
+    - name: Disable swap now
+      command: swapoff -a
+      changed_when: false
+
+    - name: Disable swap in fstab
+      replace:
+        path: /etc/fstab
+        regexp: '^(.*\sswap\s+sw\s+.*)$'
+        replace: '# \1'
+
+    - name: Install base packages
+      apt:
+        name:
+          - curl
+          - ca-certificates
+        state: present
+        update_cache: true
