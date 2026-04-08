@@ -1,0 +1,82 @@
+- name: Base prep on all k3s nodes
+  hosts: k3s_cluster
+  become: true
+  tasks:
+    - name: Disable swap now
+      command: swapoff -a
+      changed_when: false
+
+    - name: Disable swap in fstab
+      replace:
+        path: /etc/fstab
+        regexp: '^(.*\sswap\s+sw\s+.*)$'
+        replace: '# \1'
+
+    - name: Install base packages
+      apt:
+        name:
+          - curl
+          - ca-certificates
+        state: present
+        update_cache: true
+
+- name: Install k3s server
+  hosts: k3s_server
+  become: true
+  tasks:
+    - name: Install k3s server
+      shell: |
+        curl -sfL https://get.k3s.io | \
+        INSTALL_K3S_EXEC="server --write-kubeconfig-mode 644" sh -
+      args:
+        creates: /etc/rancher/k3s/k3s.yaml
+
+    - name: Wait for node token
+      wait_for:
+        path: /var/lib/rancher/k3s/server/node-token
+        timeout: 60
+
+    - name: Read node token
+      slurp:
+        src: /var/lib/rancher/k3s/server/node-token
+      register: k3s_token_raw
+
+    - name: Save join token
+      set_fact:
+        k3s_join_token: "{{ k3s_token_raw.content | b64decode | trim }}"
+
+- name: Join workers to k3s
+  hosts: k3s_worker
+  become: true
+  vars:
+    k3s_server_ip: "{{ groups['k3s_server'][0] }}"
+    k3s_token: "{{ hostvars[groups['k3s_server'][0]]['k3s_join_token'] }}"
+  tasks:
+    - name: Install k3s agent
+      shell: |
+        curl -sfL https://get.k3s.io | \
+        K3S_URL="https://{{ k3s_server_ip }}:6443" \
+        K3S_TOKEN="{{ k3s_token }}" sh -
+      args:
+        creates: /etc/systemd/system/k3s-agent.service
+
+- name: Verify cluster from server
+  hosts: k3s_server
+  become: true
+  tasks:
+    - name: Wait for all nodes to appear
+      command: kubectl get nodes
+      register: kubectl_nodes
+      retries: 15
+      delay: 10
+      until: kubectl_nodes.rc == 0 and (kubectl_nodes.stdout_lines | length) >= 5
+      changed_when: false
+
+    - name: Show nodes
+      command: kubectl get nodes -o wide
+      register: final_nodes
+      changed_when: false
+
+    - name: Print node list
+      debug:
+        var: final_nodes.stdout_lines
