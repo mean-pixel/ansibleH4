@@ -1,0 +1,88 @@
+- name: Deploy Minecraft server
+  hosts: k3s_server
+  become: true
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  vars:
+    minecraft_namespace: minecraft
+    minecraft_name: mc-server
+    minecraft_eula: "TRUE"
+    minecraft_memory: "2G"
+    minecraft_type: "VANILLA"
+    minecraft_version: "LATEST"
+    minecraft_service_type: "NodePort"
+    minecraft_nodeport: 30065
+
+  tasks:
+    - name: Create namespace
+      command: kubectl create namespace {{ minecraft_namespace }}
+      register: ns_create
+      failed_when: ns_create.rc not in [0,1]
+      changed_when: ns_create.rc == 0
+
+    - name: Write Minecraft manifest
+      copy:
+        dest: /tmp/minecraft.yaml
+        content: |
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: {{ minecraft_name }}
+            namespace: {{ minecraft_namespace }}
+          spec:
+            replicas: 1
+            selector:
+              matchLabels:
+                app: {{ minecraft_name }}
+            template:
+              metadata:
+                labels:
+                  app: {{ minecraft_name }}
+              spec:
+                containers:
+                  - name: minecraft
+                    image: itzg/minecraft-server:latest
+                    ports:
+                      - containerPort: 25565
+                    env:
+                      - name: EULA
+                        value: "{{ minecraft_eula }}"
+                      - name: MEMORY
+                        value: "{{ minecraft_memory }}"
+                      - name: TYPE
+                        value: "{{ minecraft_type }}"
+                      - name: VERSION
+                        value: "{{ minecraft_version }}"
+                    volumeMounts:
+                      - name: mc-data
+                        mountPath: /data
+                volumes:
+                  - name: mc-data
+                    emptyDir: {}
+          ---
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: {{ minecraft_name }}
+            namespace: {{ minecraft_namespace }}
+          spec:
+            type: {{ minecraft_service_type }}
+            selector:
+              app: {{ minecraft_name }}
+            ports:
+              - name: minecraft
+                port: 25565
+                targetPort: 25565
+                nodePort: {{ minecraft_nodeport }}
+
+    - name: Apply Minecraft manifest
+      command: kubectl apply -f /tmp/minecraft.yaml
+
+    - name: Show resources
+      command: kubectl get all -n {{ minecraft_namespace }}
+      register: mc_status
+      changed_when: false
+
+    - name: Print Minecraft status
+      debug:
+        var: mc_status.stdout_lines
