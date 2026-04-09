@@ -4,7 +4,7 @@ from flask import Flask, render_template, request
 
 app = Flask(__name__)
 
-VALID_SWITCHES = {"sw-9200l-1"}
+VALID_SWITCHES = {"SW01-Mette"}
 INTERFACE_REGEX = re.compile(r"^(GigabitEthernet|TenGigabitEthernet)\d+/\d+/\d+$")
 DESCRIPTION_REGEX = re.compile(r"^[A-Za-z0-9 _.\-\/]{1,100}$")
 ALLOWED_VLANS_REGEX = re.compile(r"^[0-9,\- ]+$")
@@ -72,7 +72,7 @@ def index():
                 return render_template("index.html", output="Fejl: Ugyldig allowed VLAN-liste.")
 
             cmd = [
-                "ansible-playbook",
+                "/usr/bin/ansible-playbook",
                 "-i", "inventory/hosts.yml",
                 "playbooks/set_trunk_port.yml",
                 "-e", f"switch={switch}",
