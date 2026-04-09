@@ -1,0 +1,15 @@
+---
+- name: Sæt trunk-port på Cisco switch
+  hosts: "{{ switch }}"
+  gather_facts: no
+
+  tasks:
+    - name: Konfigurer trunk-port
+      cisco.ios.ios_config:
+        parents: "interface {{ interface }}"
+        lines:
+          - description {{ description }}
+          - switchport trunk encapsulation dot1q
+          - switchport mode trunk
+          - switchport trunk allowed vlan {{ allowed_vlans }}
+          - no shutdown
