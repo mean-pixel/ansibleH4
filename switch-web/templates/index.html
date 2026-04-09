@@ -3,15 +3,16 @@
 <head>
   <meta charset="utf-8">
   <title>Cisco Switch Config</title>
+
   <style>
     body {
-    font-family: Arial, sans-serif;
-    background: #f6efff;
-    color: #2f2142;
-    max-width: 860px;
-    margin: 40px auto;
-    padding: 20px;
-}
+      font-family: Arial, sans-serif;
+      background: #f6efff;
+      color: #2f2142;
+      max-width: 860px;
+      margin: 40px auto;
+      padding: 20px;
+    }
 
     .card {
       background: #ffffff;
@@ -70,6 +71,11 @@
       background: #7447d1;
     }
 
+    button:disabled {
+      background: #b99bf3;
+      cursor: not-allowed;
+    }
+
     .hint {
       margin-top: 6px;
       font-size: 13px;
@@ -85,6 +91,63 @@
       border-radius: 12px;
       border: 1px solid #4d2b7a;
     }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+
+    th {
+      text-align: left;
+      padding: 10px;
+      border-bottom: 1px solid #d9c2ff;
+      color: #4a2c77;
+    }
+
+    td {
+      padding: 10px;
+      border-bottom: 1px solid #eee;
+      vertical-align: top;
+    }
+
+    .loading-wrapper {
+      display: none;
+      margin-top: 18px;
+    }
+
+    .loading-text {
+      font-weight: bold;
+      color: #6a38c2;
+      margin-bottom: 8px;
+    }
+
+    .progress-bar {
+      width: 100%;
+      height: 16px;
+      background: #eadcff;
+      border-radius: 999px;
+      overflow: hidden;
+      border: 1px solid #d4b9ff;
+    }
+
+    .progress-fill {
+      height: 100%;
+      width: 35%;
+      background: linear-gradient(90deg, #8b5cf6, #b388ff, #8b5cf6);
+      background-size: 200% 100%;
+      animation: loadingMove 1.2s linear infinite;
+      border-radius: 999px;
+    }
+
+    @keyframes loadingMove {
+      0% {
+        transform: translateX(-60%);
+      }
+      100% {
+        transform: translateX(260%);
+      }
+    }
   </style>
 
   <script>
@@ -93,14 +156,22 @@
       document.getElementById("access-fields").style.display = mode === "access" ? "block" : "none";
       document.getElementById("trunk-fields").style.display = mode === "trunk" ? "block" : "none";
     }
+
+    function showLoading() {
+      document.getElementById("submit-btn").disabled = true;
+      document.getElementById("submit-btn").innerText = "Kører...";
+      document.getElementById("loading-wrapper").style.display = "block";
+    }
+
     window.onload = toggleFields;
   </script>
 </head>
+
 <body>
   <div class="card">
     <h1>Cisco Catalyst 9200L konfiguration</h1>
 
-    <form method="post">
+    <form method="post" onsubmit="showLoading()">
       <label for="switch">Switch</label>
       <select name="switch" id="switch" required>
         {% for sw in switches %}
@@ -139,89 +210,99 @@
         <input name="allowed_vlans" id="allowed_vlans" placeholder="10,20,30 eller 10-20">
       </div>
 
-      <button type="submit">Kør Ansible</button>
+      <button type="submit" id="submit-btn">Kør Ansible</button>
+
+      <div id="loading-wrapper" class="loading-wrapper">
+        <div class="loading-text">Kører playbook...</div>
+        <div class="progress-bar">
+          <div class="progress-fill"></div>
+        </div>
+      </div>
     </form>
 
-   {% if state_error %}
-  <h2>Switch-status</h2>
-  <pre>{{ state_error }}</pre>
-{% else %}
-  <h2>Eksisterende VLANs</h2>
-  <div style="overflow-x:auto;">
-    <table style="width:100%; border-collapse: collapse; margin-top: 10px;">
-      <thead>
-        <tr>
-          <th style="text-align:left; padding:10px; border-bottom:1px solid #d9c2ff;">VLAN</th>
-          <th style="text-align:left; padding:10px; border-bottom:1px solid #d9c2ff;">Navn</th>
-          <th style="text-align:left; padding:10px; border-bottom:1px solid #d9c2ff;">Status</th>
-          <th style="text-align:left; padding:10px; border-bottom:1px solid #d9c2ff;">Porte</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for vlan in vlans %}
-          <tr>
-            <td style="padding:10px; border-bottom:1px solid #eee;">{{ vlan.id }}</td>
-            <td style="padding:10px; border-bottom:1px solid #eee;">{{ vlan.name }}</td>
-            <td style="padding:10px; border-bottom:1px solid #eee;">{{ vlan.status }}</td>
-            <td style="padding:10px; border-bottom:1px solid #eee;">{{ vlan.ports }}</td>
-          </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
+    {% if state_error %}
+      <h2>Switch-status</h2>
+      <pre>{{ state_error }}</pre>
+    {% else %}
+      <h2>Eksisterende VLANs</h2>
+      <div style="overflow-x:auto;">
+        <table>
+          <thead>
+            <tr>
+              <th>VLAN</th>
+              <th>Navn</th>
+              <th>Status</th>
+              <th>Porte</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for vlan in vlans %}
+              <tr>
+                <td>{{ vlan.id }}</td>
+                <td>{{ vlan.name }}</td>
+                <td>{{ vlan.status }}</td>
+                <td>{{ vlan.ports }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
 
-  <h2>Configured trunk-porte</h2>
-  <div style="overflow-x:auto;">
-    <table style="width:100%; border-collapse: collapse; margin-top: 10px;">
-      <thead>
-        <tr>
-          <th style="text-align:left; padding:10px; border-bottom:1px solid #d9c2ff;">Port</th>
-          <th style="text-align:left; padding:10px; border-bottom:1px solid #d9c2ff;">Description</th>
-          <th style="text-align:left; padding:10px; border-bottom:1px solid #d9c2ff;">Allowed VLANs</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for trunk in configured_trunks %}
-          <tr>
-            <td style="padding:10px; border-bottom:1px solid #eee;">{{ trunk.port }}</td>
-            <td style="padding:10px; border-bottom:1px solid #eee;">{{ trunk.description }}</td>
-            <td style="padding:10px; border-bottom:1px solid #eee;">{{ trunk.allowed_vlans }}</td>
-          </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
+      <h2>Configured trunk-porte</h2>
+      <div style="overflow-x:auto;">
+        <table>
+          <thead>
+            <tr>
+              <th>Port</th>
+              <th>Description</th>
+              <th>Allowed VLANs</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for trunk in configured_trunks %}
+              <tr>
+                <td>{{ trunk.port }}</td>
+                <td>{{ trunk.description }}</td>
+                <td>{{ trunk.allowed_vlans }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
 
-  <h2>Active trunk-porte</h2>
-  <div style="overflow-x:auto;">
-    <table style="width:100%; border-collapse: collapse; margin-top: 10px;">
-      <thead>
-        <tr>
-          <th style="text-align:left; padding:10px; border-bottom:1px solid #d9c2ff;">Port</th>
-          <th style="text-align:left; padding:10px; border-bottom:1px solid #d9c2ff;">Mode</th>
-          <th style="text-align:left; padding:10px; border-bottom:1px solid #d9c2ff;">Encap</th>
-          <th style="text-align:left; padding:10px; border-bottom:1px solid #d9c2ff;">Status</th>
-          <th style="text-align:left; padding:10px; border-bottom:1px solid #d9c2ff;">Native VLAN</th>
-          <th style="text-align:left; padding:10px; border-bottom:1px solid #d9c2ff;">Allowed VLANs</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for trunk in active_trunks %}
-          <tr>
-            <td style="padding:10px; border-bottom:1px solid #eee;">{{ trunk.port }}</td>
-            <td style="padding:10px; border-bottom:1px solid #eee;">{{ trunk.mode }}</td>
-            <td style="padding:10px; border-bottom:1px solid #eee;">{{ trunk.encapsulation }}</td>
-            <td style="padding:10px; border-bottom:1px solid #eee;">{{ trunk.status }}</td>
-            <td style="padding:10px; border-bottom:1px solid #eee;">{{ trunk.native_vlan }}</td>
-            <td style="padding:10px; border-bottom:1px solid #eee;">{{ trunk.allowed_vlans }}</td>
-          </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-{% endif %}
+      <h2>Active trunk-porte</h2>
+      <div style="overflow-x:auto;">
+        <table>
+          <thead>
+            <tr>
+              <th>Port</th>
+              <th>Mode</th>
+              <th>Encap</th>
+              <th>Status</th>
+              <th>Native VLAN</th>
+              <th>Allowed VLANs</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for trunk in active_trunks %}
+              <tr>
+                <td>{{ trunk.port }}</td>
+                <td>{{ trunk.mode }}</td>
+                <td>{{ trunk.encapsulation }}</td>
+                <td>{{ trunk.status }}</td>
+                <td>{{ trunk.native_vlan }}</td>
+                <td>{{ trunk.allowed_vlans }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% endif %}
 
-{% if output %}
-  <h2>Resultat</h2>
-  <pre>{{ output }}</pre>
-{% endif %}
+    {% if output %}
+      <h2>Resultat</h2>
+      <pre>{{ output }}</pre>
+    {% endif %}
+  </div>
+</body>
+</html>
