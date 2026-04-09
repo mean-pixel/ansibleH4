@@ -9,7 +9,6 @@
         parents: "interface {{ interface }}"
         lines:
           - description {{ description }}
-          - switchport trunk encapsulation dot1q
           - switchport mode trunk
           - switchport trunk allowed vlan {{ allowed_vlans }}
           - no shutdown
