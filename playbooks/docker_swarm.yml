@@ -37,6 +37,6 @@
     - name: Join worker to swarm
       command: >
         docker swarm join
-        --token {{ hostvars[groups['managers'][0]].swarm_worker_token }}
-        {{ hostvars[groups['managers'][0]].ansible_host | default(groups['managers'][0]) }}:2377
+        --token {{ hostvars[groups['dockermanagers'][0]].swarm_worker_token }}
+        {{ hostvars[groups['dockermanagers'][0]].ansible_host | default(groups['dockermanagers'][0]) }}:2377
       when: worker_swarm_state.stdout != "active"
