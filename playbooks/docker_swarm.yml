@@ -1,6 +1,6 @@
 ---
 - name: Initialize Docker Swarm manager
-  hosts: managers
+  hosts: dockermanagers
   become: true
   gather_facts: true
 
@@ -24,7 +24,7 @@
         swarm_worker_token: "{{ worker_join_token.stdout }}"
 
 - name: Join workers to swarm
-  hosts: workers
+  hosts: dockerworkers
   become: true
   gather_facts: true
 
