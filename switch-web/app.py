@@ -46,6 +46,7 @@ def index():
         interface = request.form.get("interface", "").strip()
         description = request.form.get("description", "").strip()
         mode = request.form.get("mode", "").strip()
+        vlan_name = request.form.get("vlan_name", "").strip()
 
         if switch not in VALID_SWITCHES:
             return render_page("Fejl: Ugyldig switch.")
@@ -73,8 +74,10 @@ def index():
                 "-e", f"interface={interface}",
                 "-e", f"vlan_id={vlan_id}",
                 "-e", f"description={description}",
-                "-e", f"vlan_name={vlan_name}",
             ]
+
+            if vlan_name:
+                cmd.extend(["-e", f"vlan_name={vlan_name}"])
 
         elif mode == "trunk":
             allowed_vlans = request.form.get("allowed_vlans", "").strip()
@@ -102,7 +105,11 @@ def index():
                 timeout=120,
                 check=False,
             )
-            output = f"EXIT CODE: {result.returncode}\n\nSTDOUT:\n{result.stdout}\n\nSTDERR:\n{result.stderr}"
+            output = (
+                f"EXIT CODE: {result.returncode}\n\n"
+                f"STDOUT:\n{result.stdout}\n\n"
+                f"STDERR:\n{result.stderr}"
+            )
         except subprocess.TimeoutExpired:
             output = "Fejl: Ansible-jobbet tog for lang tid."
         except Exception as exc:
