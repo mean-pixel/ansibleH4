@@ -4,17 +4,89 @@
   <meta charset="utf-8">
   <title>Cisco Switch Config</title>
   <style>
-    body { font-family: Arial, sans-serif; max-width: 700px; margin: 40px auto; }
-    label { display: block; margin-top: 12px; font-weight: bold; }
-    input, select, textarea, button {
-      width: 100%; padding: 10px; margin-top: 6px; box-sizing: border-box;
+    body {
+      font-family: Arial, sans-serif;
+      background: #f6efff;
+      color: #2f2142;
+      max-width: 860px;
+      margin: 40px auto;
+      padding: 20px;
     }
-    .row { display: flex; gap: 16px; }
-    .row > div { flex: 1; }
+
+    .card {
+      background: #ffffff;
+      border: 1px solid #ddc8ff;
+      border-radius: 18px;
+      padding: 28px;
+      box-shadow: 0 10px 28px rgba(114, 74, 180, 0.12);
+    }
+
+    h1 {
+      margin-top: 0;
+      color: #6a38c2;
+      font-size: 40px;
+    }
+
+    h2 {
+      color: #6a38c2;
+      margin-top: 28px;
+    }
+
+    label {
+      display: block;
+      margin-top: 14px;
+      margin-bottom: 6px;
+      font-weight: bold;
+      color: #4a2c77;
+    }
+
+    input, select, textarea, button {
+      width: 100%;
+      padding: 12px 14px;
+      box-sizing: border-box;
+      border: 1px solid #cbb0f6;
+      border-radius: 10px;
+      font-size: 15px;
+      background: #fcf9ff;
+    }
+
+    input:focus, select:focus, textarea:focus {
+      outline: none;
+      border-color: #8b5cf6;
+      box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.15);
+    }
+
+    button {
+      margin-top: 18px;
+      background: #8b5cf6;
+      color: white;
+      border: none;
+      font-weight: bold;
+      cursor: pointer;
+      transition: 0.2s ease;
+    }
+
+    button:hover {
+      background: #7447d1;
+    }
+
+    .hint {
+      margin-top: 6px;
+      font-size: 13px;
+      color: #6f5a91;
+    }
+
     pre {
-      background: #111; color: #eee; padding: 16px; overflow-x: auto; white-space: pre-wrap;
+      background: #180f27;
+      color: #f4edff;
+      padding: 16px;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      border-radius: 12px;
+      border: 1px solid #4d2b7a;
     }
   </style>
+
   <script>
     function toggleFields() {
       const mode = document.getElementById("mode").value;
@@ -25,42 +97,51 @@
   </script>
 </head>
 <body>
-  <h1>Cisco Catalyst 9200L konfiguration</h1>
+  <div class="card">
+    <h1>Cisco Catalyst 9200L konfiguration</h1>
 
-  <form method="post">
-    <label for="switch">Switch</label>
-    <select name="switch" id="switch" required>
-      <option value="SW01-Mette">SW01-Mette</option>
-    </select>
+    <form method="post">
+      <label for="switch">Switch</label>
+      <select name="switch" id="switch" required>
+        {% for sw in switches %}
+          <option value="{{ sw }}">{{ sw }}</option>
+        {% endfor %}
+      </select>
 
-    <label for="interface">Interface</label>
-    <input name="interface" id="interface" placeholder="GigabitEthernet1/0/10" required>
+      <label for="interface">Port</label>
+      <select name="interface" id="interface" required>
+        {% for port in ports %}
+          <option value="{{ port }}">{{ port }}</option>
+        {% endfor %}
+      </select>
+      <div class="hint">Vælg port 1 til 24</div>
 
-    <label for="description">Description</label>
-    <input name="description" id="description" placeholder="Kontor-PC" required>
+      <label for="description">Description</label>
+      <input name="description" id="description" placeholder="Kontor-PC" required>
 
-    <label for="mode">Mode</label>
-    <select name="mode" id="mode" onchange="toggleFields()" required>
-      <option value="access">Access</option>
-      <option value="trunk">Trunk</option>
-    </select>
+      <label for="mode">Mode</label>
+      <select name="mode" id="mode" onchange="toggleFields()" required>
+        <option value="access">Access</option>
+        <option value="trunk">Trunk</option>
+      </select>
 
-    <div id="access-fields">
-      <label for="vlan_id">Access VLAN</label>
-      <input name="vlan_id" id="vlan_id" type="number" min="1" max="4094" placeholder="20">
-    </div>
+      <div id="access-fields">
+        <label for="vlan_id">Access VLAN</label>
+        <input name="vlan_id" id="vlan_id" type="number" min="1" max="4094" placeholder="20">
+      </div>
 
-    <div id="trunk-fields">
-      <label for="allowed_vlans">Allowed VLANs</label>
-      <input name="allowed_vlans" id="allowed_vlans" placeholder="10,20,30 eller 10-20">
-    </div>
+      <div id="trunk-fields">
+        <label for="allowed_vlans">Allowed VLANs</label>
+        <input name="allowed_vlans" id="allowed_vlans" placeholder="10,20,30 eller 10-20">
+      </div>
 
-    <button type="submit">Kør Ansible</button>
-  </form>
+      <button type="submit">Kør Ansible</button>
+    </form>
 
-  {% if output %}
-    <h2>Resultat</h2>
-    <pre>{{ output }}</pre>
-  {% endif %}
+    {% if output %}
+      <h2>Resultat</h2>
+      <pre>{{ output }}</pre>
+    {% endif %}
+  </div>
 </body>
 </html>
