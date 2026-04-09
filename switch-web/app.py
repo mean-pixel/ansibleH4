@@ -56,7 +56,7 @@ def index():
                 return render_template("index.html", output="Fejl: Ugyldigt VLAN-id.")
 
             cmd = [
-                "ansible-playbook",
+                "/usr/bin/ansible-playbook",
                 "-i", "inventory/hosts.yml",
                 "playbooks/set_access_port.yml",
                 "-e", f"switch={switch}",
