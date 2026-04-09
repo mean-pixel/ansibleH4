@@ -4,10 +4,17 @@ from flask import Flask, render_template, request
 
 app = Flask(__name__)
 
-VALID_SWITCHES = {"SW01-Mette"}
+SWITCHES = ["SW01-Mette"]
+PORTS = [f"GigabitEthernet1/0/{i}" for i in range(1, 25)]
+
+VALID_SWITCHES = set(SWITCHES)
 INTERFACE_REGEX = re.compile(r"^(GigabitEthernet|TenGigabitEthernet)\d+/\d+/\d+$")
 DESCRIPTION_REGEX = re.compile(r"^[A-Za-z0-9 _.\-\/]{1,100}$")
 ALLOWED_VLANS_REGEX = re.compile(r"^[0-9,\- ]+$")
+
+
+def render_page(output=None):
+    return render_template("index.html", output=output, switches=SWITCHES, ports=PORTS)
 
 
 def validate_interface(value: str) -> bool:
@@ -41,19 +48,22 @@ def index():
         mode = request.form.get("mode", "").strip()
 
         if switch not in VALID_SWITCHES:
-            return render_template("index.html", output="Fejl: Ugyldig switch.")
+            return render_page("Fejl: Ugyldig switch.")
+
+        if interface not in PORTS:
+            return render_page("Fejl: Ugyldig port.")
 
         if not validate_interface(interface):
-            return render_template("index.html", output="Fejl: Ugyldigt interface-format.")
+            return render_page("Fejl: Ugyldigt interface-format.")
 
         if not validate_description(description):
-            return render_template("index.html", output="Fejl: Ugyldig description.")
+            return render_page("Fejl: Ugyldig description.")
 
         if mode == "access":
             vlan_id = request.form.get("vlan_id", "").strip()
 
             if not validate_vlan(vlan_id):
-                return render_template("index.html", output="Fejl: Ugyldigt VLAN-id.")
+                return render_page("Fejl: Ugyldigt VLAN-id.")
 
             cmd = [
                 "/usr/bin/ansible-playbook",
@@ -69,7 +79,7 @@ def index():
             allowed_vlans = request.form.get("allowed_vlans", "").strip()
 
             if not validate_allowed_vlans(allowed_vlans):
-                return render_template("index.html", output="Fejl: Ugyldig allowed VLAN-liste.")
+                return render_page("Fejl: Ugyldig allowed VLAN-liste.")
 
             cmd = [
                 "/usr/bin/ansible-playbook",
@@ -81,7 +91,7 @@ def index():
                 "-e", f"allowed_vlans={allowed_vlans}",
             ]
         else:
-            return render_template("index.html", output="Fejl: Ugyldig mode.")
+            return render_page("Fejl: Ugyldig mode.")
 
         try:
             result = subprocess.run(
@@ -97,8 +107,8 @@ def index():
         except Exception as exc:
             output = f"Fejl under kørsel: {exc}"
 
-    return render_template("index.html", output=output)
+    return render_page(output)
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    app.run(host="0.0.0.0", port=5000, debug=False)
