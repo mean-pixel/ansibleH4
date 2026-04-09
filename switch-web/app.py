@@ -5,7 +5,7 @@ from flask import Flask, render_template, request
 app = Flask(__name__)
 
 SWITCHES = ["SW01-Mette"]
-PORTS = [f"GigabitEthernet1/0/{i}" for i in range(1, 25)]
+PORTS = [f"GigabitEthernet1/0/{i}" for i in range(1, 24)]
 
 VALID_SWITCHES = set(SWITCHES)
 INTERFACE_REGEX = re.compile(r"^(GigabitEthernet|TenGigabitEthernet)\d+/\d+/\d+$")
