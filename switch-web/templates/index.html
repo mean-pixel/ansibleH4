@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="da">
+<head>
+  <meta charset="utf-8">
+  <title>Cisco Switch Config</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 700px; margin: 40px auto; }
+    label { display: block; margin-top: 12px; font-weight: bold; }
+    input, select, textarea, button {
+      width: 100%; padding: 10px; margin-top: 6px; box-sizing: border-box;
+    }
+    .row { display: flex; gap: 16px; }
+    .row > div { flex: 1; }
+    pre {
+      background: #111; color: #eee; padding: 16px; overflow-x: auto; white-space: pre-wrap;
+    }
+  </style>
+  <script>
+    function toggleFields() {
+      const mode = document.getElementById("mode").value;
+      document.getElementById("access-fields").style.display = mode === "access" ? "block" : "none";
+      document.getElementById("trunk-fields").style.display = mode === "trunk" ? "block" : "none";
+    }
+    window.onload = toggleFields;
+  </script>
+</head>
+<body>
+  <h1>Cisco Catalyst 9200L konfiguration</h1>
+
+  <form method="post">
+    <label for="switch">Switch</label>
+    <select name="switch" id="switch" required>
+      <option value="sw-9200l-1">sw-9200l-1</option>
+    </select>
+
+    <label for="interface">Interface</label>
+    <input name="interface" id="interface" placeholder="GigabitEthernet1/0/10" required>
+
+    <label for="description">Description</label>
+    <input name="description" id="description" placeholder="Kontor-PC" required>
+
+    <label for="mode">Mode</label>
+    <select name="mode" id="mode" onchange="toggleFields()" required>
+      <option value="access">Access</option>
+      <option value="trunk">Trunk</option>
+    </select>
+
+    <div id="access-fields">
+      <label for="vlan_id">Access VLAN</label>
+      <input name="vlan_id" id="vlan_id" type="number" min="1" max="4094" placeholder="20">
+    </div>
+
+    <div id="trunk-fields">
+      <label for="allowed_vlans">Allowed VLANs</label>
+      <input name="allowed_vlans" id="allowed_vlans" placeholder="10,20,30 eller 10-20">
+    </div>
+
+    <button type="submit">Kør Ansible</button>
+  </form>
+
+  {% if output %}
+    <h2>Resultat</h2>
+    <pre>{{ output }}</pre>
+  {% endif %}
+</body>
+</html>
