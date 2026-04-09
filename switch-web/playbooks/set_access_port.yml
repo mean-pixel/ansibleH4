@@ -12,4 +12,5 @@
           - switchport mode access
           - switchport access vlan {{ vlan_id }}
           - spanning-tree portfast
+          - spanning-tree bpduguard enable
           - no shutdown
