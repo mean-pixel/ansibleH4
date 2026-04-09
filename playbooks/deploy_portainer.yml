@@ -1,0 +1,39 @@
+---
+- name: Deploy Portainer
+  hosts: dockermanagers
+  become: true
+
+  vars:
+    portainer_dir: /opt/portainer
+
+  tasks:
+    - name: Create Portainer directory
+      file:
+        path: "{{ portainer_dir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Copy docker-compose file
+      copy:
+        dest: "{{ portainer_dir }}/docker-compose.yml"
+        mode: "0644"
+        content: |
+          services:
+            portainer:
+              image: portainer/portainer-ce:latest
+              container_name: portainer
+              restart: unless-stopped
+              ports:
+                - "9000:9000"
+                - "9443:9443"
+              volumes:
+                - /var/run/docker.sock:/var/run/docker.sock
+                - portainer_data:/data
+
+          volumes:
+            portainer_data:
+
+    - name: Start Portainer with Docker Compose
+      command: docker compose up -d
+      args:
+        chdir: "{{ portainer_dir }}"
