@@ -1,122 +1,124 @@
-import re
-import subprocess
-from flask import Flask, render_template, request
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Cisco Switch Config</title>
 
-app = Flask(__name__)
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f6efff;
+            color: #2f2142;
+            max-width: 860px;
+            margin: 40px auto;
+            padding: 20px;
 
-SWITCHES = ["SW01-Mette"]
-PORTS = [f"GigabitEthernet1/0/{i}" for i in range(1, 25)]
+            /* 🌸 Blomster overlay */
+            background-image:
+                radial-gradient(circle at 15% 20%, rgba(170, 130, 255, 0.18) 0 40px, transparent 41px),
+                radial-gradient(circle at 85% 25%, rgba(200, 160, 255, 0.14) 0 35px, transparent 36px),
+                radial-gradient(circle at 40% 80%, rgba(150, 110, 255, 0.12) 0 50px, transparent 51px),
+                radial-gradient(circle at 70% 70%, rgba(180, 140, 255, 0.10) 0 45px, transparent 46px),
+                radial-gradient(circle at 10% 75%, rgba(210, 170, 255, 0.12) 0 30px, transparent 31px);
 
-VALID_SWITCHES = set(SWITCHES)
-INTERFACE_REGEX = re.compile(r"^(GigabitEthernet|TenGigabitEthernet)\d+/\d+/\d+$")
-DESCRIPTION_REGEX = re.compile(r"^[A-Za-z0-9 _.\-\/]{1,100}$")
-ALLOWED_VLANS_REGEX = re.compile(r"^[0-9,\- ]+$")
+            background-attachment: fixed;
+        }
 
+        h1 {
+            text-align: center;
+        }
 
-def render_page(output=None):
-    return render_template("index.html", output=output, switches=SWITCHES, ports=PORTS)
+        .card {
+            background: white;
+            padding: 25px;
+            border-radius: 18px;
+            box-shadow: 
+                0 10px 28px rgba(114, 74, 180, 0.12),
+                0 0 40px rgba(170, 130, 255, 0.08);
+            border: 1px solid #ddc8ff;
+        }
 
+        label {
+            display: block;
+            margin-top: 15px;
+        }
 
-def validate_interface(value: str) -> bool:
-    return bool(INTERFACE_REGEX.match(value))
+        input, select {
+            width: 100%;
+            padding: 10px;
+            margin-top: 5px;
+            border-radius: 8px;
+            border: 1px solid #ccc;
+        }
 
+        button {
+            margin-top: 20px;
+            width: 100%;
+            padding: 12px;
+            background: #b388ff;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+        }
 
-def validate_description(value: str) -> bool:
-    return bool(DESCRIPTION_REGEX.match(value))
+        button:hover {
+            background: #9c6eff;
+        }
 
+        .result {
+            margin-top: 20px;
+            background: black;
+            color: #00ff88;
+            padding: 15px;
+            border-radius: 10px;
+            font-family: monospace;
+        }
+    </style>
+</head>
 
-def validate_vlan(value: str) -> bool:
-    try:
-        vlan = int(value)
-        return 1 <= vlan <= 4094
-    except Exception:
-        return False
+<body>
 
+    <h1>Cisco Catalyst 9200L konfiguration</h1>
 
-def validate_allowed_vlans(value: str) -> bool:
-    return bool(value) and bool(ALLOWED_VLANS_REGEX.match(value))
+    <div class="card">
+        <form method="post">
 
+            <label>Switch</label>
+            <select name="switch">
+                <option value="SW01-Mette">SW01-Mette</option>
+            </select>
 
-@app.route("/", methods=["GET", "POST"])
-def index():
-    output = None
+            <label>Interface</label>
+            <select name="interface">
+                {% for i in range(1,25) %}
+                    <option value="GigabitEthernet1/0/{{i}}">
+                        GigabitEthernet1/0/{{i}}
+                    </option>
+                {% endfor %}
+            </select>
 
-    if request.method == "POST":
-        switch = request.form.get("switch", "").strip()
-        interface = request.form.get("interface", "").strip()
-        description = request.form.get("description", "").strip()
-        mode = request.form.get("mode", "").strip()
-        vlan_name = request.form.get("vlan_name", "").strip()
+            <label>Description</label>
+            <input type="text" name="description" placeholder="Beskrivelse">
 
-        if switch not in VALID_SWITCHES:
-            return render_page("Fejl: Ugyldig switch.")
+            <label>Mode</label>
+            <select name="mode">
+                <option value="access">Access</option>
+                <option value="trunk">Trunk</option>
+            </select>
 
-        if interface not in PORTS:
-            return render_page("Fejl: Ugyldig port.")
+            <label>Access VLAN</label>
+            <input type="number" name="vlan_id" value="1">
 
-        if not validate_interface(interface):
-            return render_page("Fejl: Ugyldigt interface-format.")
+            <button type="submit">Kør Ansible</button>
 
-        if not validate_description(description):
-            return render_page("Fejl: Ugyldig description.")
+        </form>
+    </div>
 
-        if mode == "access":
-            vlan_id = request.form.get("vlan_id", "").strip()
+    {% if output %}
+    <div class="result">
+        {{ output }}
+    </div>
+    {% endif %}
 
-            if not validate_vlan(vlan_id):
-                return render_page("Fejl: Ugyldigt VLAN-id.")
-
-            cmd = [
-                "/usr/bin/ansible-playbook",
-                "-i", "inventory/hosts.yml",
-                "playbooks/set_access_port.yml",
-                "-e", f"switch={switch}",
-                "-e", f"interface={interface}",
-                "-e", f"vlan_id={vlan_id}",
-                "-e", f"description={description}",
-            ]
-
-            if vlan_name:
-                cmd.extend(["-e", f"vlan_name={vlan_name}"])
-
-        elif mode == "trunk":
-            allowed_vlans = request.form.get("allowed_vlans", "").strip()
-
-            if not validate_allowed_vlans(allowed_vlans):
-                return render_page("Fejl: Ugyldig allowed VLAN-liste.")
-
-            cmd = [
-                "/usr/bin/ansible-playbook",
-                "-i", "inventory/hosts.yml",
-                "playbooks/set_trunk_port.yml",
-                "-e", f"switch={switch}",
-                "-e", f"interface={interface}",
-                "-e", f"description={description}",
-                "-e", f"allowed_vlans={allowed_vlans}",
-            ]
-        else:
-            return render_page("Fejl: Ugyldig mode.")
-
-        try:
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=120,
-                check=False,
-            )
-            output = (
-                f"EXIT CODE: {result.returncode}\n\n"
-                f"STDOUT:\n{result.stdout}\n\n"
-                f"STDERR:\n{result.stderr}"
-            )
-        except subprocess.TimeoutExpired:
-            output = "Fejl: Ansible-jobbet tog for lang tid."
-        except Exception as exc:
-            output = f"Fejl under kørsel: {exc}"
-
-    return render_page(output)
-
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=False)
+</body>
+</html>
