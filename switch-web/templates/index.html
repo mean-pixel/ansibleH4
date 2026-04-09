@@ -142,10 +142,64 @@
       <button type="submit">Kør Ansible</button>
     </form>
 
+   {% if state_error %}
+      <h2>Switch-status</h2>
+      <pre>{{ state_error }}</pre>
+    {% else %}
+      <h2>Eksisterende VLANs</h2>
+      <div style="overflow-x:auto;">
+        <table style="width:100%; border-collapse: collapse; margin-top: 10px;">
+          <thead>
+            <tr>
+              <th style="text-align:left; padding:10px; border-bottom:1px solid #d9c2ff;">VLAN</th>
+              <th style="text-align:left; padding:10px; border-bottom:1px solid #d9c2ff;">Navn</th>
+              <th style="text-align:left; padding:10px; border-bottom:1px solid #d9c2ff;">Status</th>
+              <th style="text-align:left; padding:10px; border-bottom:1px solid #d9c2ff;">Porte</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for vlan in vlans %}
+              <tr>
+                <td style="padding:10px; border-bottom:1px solid #eee;">{{ vlan.id }}</td>
+                <td style="padding:10px; border-bottom:1px solid #eee;">{{ vlan.name }}</td>
+                <td style="padding:10px; border-bottom:1px solid #eee;">{{ vlan.status }}</td>
+                <td style="padding:10px; border-bottom:1px solid #eee;">{{ vlan.ports }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <h2>Trunk-porte</h2>
+      <div style="overflow-x:auto;">
+        <table style="width:100%; border-collapse: collapse; margin-top: 10px;">
+          <thead>
+            <tr>
+              <th style="text-align:left; padding:10px; border-bottom:1px solid #d9c2ff;">Port</th>
+              <th style="text-align:left; padding:10px; border-bottom:1px solid #d9c2ff;">Mode</th>
+              <th style="text-align:left; padding:10px; border-bottom:1px solid #d9c2ff;">Encap</th>
+              <th style="text-align:left; padding:10px; border-bottom:1px solid #d9c2ff;">Status</th>
+              <th style="text-align:left; padding:10px; border-bottom:1px solid #d9c2ff;">Native VLAN</th>
+              <th style="text-align:left; padding:10px; border-bottom:1px solid #d9c2ff;">Allowed VLANs</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for trunk in trunks %}
+              <tr>
+                <td style="padding:10px; border-bottom:1px solid #eee;">{{ trunk.port }}</td>
+                <td style="padding:10px; border-bottom:1px solid #eee;">{{ trunk.mode }}</td>
+                <td style="padding:10px; border-bottom:1px solid #eee;">{{ trunk.encapsulation }}</td>
+                <td style="padding:10px; border-bottom:1px solid #eee;">{{ trunk.status }}</td>
+                <td style="padding:10px; border-bottom:1px solid #eee;">{{ trunk.native_vlan }}</td>
+                <td style="padding:10px; border-bottom:1px solid #eee;">{{ trunk.allowed_vlans }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% endif %}
+
     {% if output %}
       <h2>Resultat</h2>
       <pre>{{ output }}</pre>
     {% endif %}
-  </div>
-</body>
-</html>
