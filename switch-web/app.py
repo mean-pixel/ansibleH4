@@ -73,6 +73,7 @@ def index():
                 "-e", f"interface={interface}",
                 "-e", f"vlan_id={vlan_id}",
                 "-e", f"description={description}",
+                "-e", f"vlan_name={vlan_name}",
             ]
 
         elif mode == "trunk":
