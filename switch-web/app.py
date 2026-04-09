@@ -5,12 +5,15 @@ from flask import Flask, render_template, request
 
 app = Flask(__name__)
 
+# Tilpas disse hvis du får flere switches
 SWITCHES = ["SW01-Mette"]
 PORTS = [f"GigabitEthernet1/0/{i}" for i in range(1, 25)]
 
 VALID_SWITCHES = set(SWITCHES)
+
 INTERFACE_REGEX = re.compile(r"^(GigabitEthernet|TenGigabitEthernet)\d+/\d+/\d+$")
-DESCRIPTION_REGEX = re.compile(r"^[A-Za-z0-9 _.\-\/]{1,100}$")
+DESCRIPTION_REGEX = re.compile(r"^[A-Za-z0-9ÆØÅæøå _.\-\/]{1,100}$")
+VLAN_NAME_REGEX = re.compile(r"^[A-Za-z0-9ÆØÅæøå _.\-\/]{1,100}$")
 ALLOWED_VLANS_REGEX = re.compile(r"^[0-9,\- ]+$")
 
 ANSIBLE_PLAYBOOK = "/usr/bin/ansible-playbook"
@@ -18,23 +21,29 @@ ANSIBLE = "/usr/bin/ansible"
 
 
 def validate_interface(value: str) -> bool:
-    return bool(INTERFACE_REGEX.match(value))
+    return bool(INTERFACE_REGEX.fullmatch(value))
 
 
 def validate_description(value: str) -> bool:
-    return bool(DESCRIPTION_REGEX.match(value))
+    return bool(DESCRIPTION_REGEX.fullmatch(value))
+
+
+def validate_vlan_name(value: str) -> bool:
+    if value == "":
+        return True
+    return bool(VLAN_NAME_REGEX.fullmatch(value))
 
 
 def validate_vlan(value: str) -> bool:
     try:
         vlan = int(value)
         return 1 <= vlan <= 4094
-    except Exception:
+    except (TypeError, ValueError):
         return False
 
 
 def validate_allowed_vlans(value: str) -> bool:
-    return bool(value) and bool(ALLOWED_VLANS_REGEX.match(value))
+    return bool(value) and bool(ALLOWED_VLANS_REGEX.fullmatch(value))
 
 
 def run_switch_show_commands():
@@ -67,23 +76,31 @@ def run_switch_show_commands():
         return None, f"Fejl ved hentning af switch-status: {exc}"
 
 
-def extract_stdout_blocks(ansible_output):
+def extract_stdout_blocks(ansible_output: str):
     blocks = []
 
-    stdout_match = re.search(r'"stdout":\s*\[(.*?)\]\s*,\s*"stdout_lines"', ansible_output, re.DOTALL)
-    if stdout_match:
-        raw = "[" + stdout_match.group(1) + "]"
-        try:
-            parsed = json.loads(raw)
+    stdout_match = re.search(
+        r'"stdout":\s*(\[[\s\S]*?\])\s*,\s*"stdout_lines"',
+        ansible_output,
+        re.DOTALL
+    )
+
+    if not stdout_match:
+        return blocks
+
+    raw = stdout_match.group(1)
+
+    try:
+        parsed = json.loads(raw)
+        if isinstance(parsed, list):
             blocks.extend(parsed)
-            return blocks
-        except Exception:
-            pass
+    except Exception:
+        pass
 
     return blocks
 
 
-def parse_vlans(vlan_text):
+def parse_vlans(vlan_text: str):
     vlans = []
 
     for line in vlan_text.splitlines():
@@ -94,7 +111,7 @@ def parse_vlans(vlan_text):
             status = match.group(3)
             ports = match.group(4).strip()
 
-            if vlan_id not in ["1002", "1003", "1004", "1005"]:
+            if vlan_id not in {"1002", "1003", "1004", "1005"}:
                 vlans.append({
                     "id": vlan_id,
                     "name": vlan_name,
@@ -105,7 +122,7 @@ def parse_vlans(vlan_text):
     return vlans
 
 
-def parse_active_trunks(trunk_text):
+def parse_active_trunks(trunk_text: str):
     trunks = []
     lines = trunk_text.splitlines()
 
@@ -165,7 +182,7 @@ def parse_active_trunks(trunk_text):
     return trunks
 
 
-def parse_configured_trunks(config_text):
+def parse_configured_trunks(config_text: str):
     configured_trunks = []
 
     blocks = re.split(r"\n(?=interface )", config_text)
@@ -227,6 +244,7 @@ def get_switch_state():
 
 def render_page(output=None):
     vlans, configured_trunks, active_trunks, state_error = get_switch_state()
+
     return render_template(
         "index.html",
         output=output,
@@ -261,6 +279,9 @@ def index():
 
         if not validate_description(description):
             return render_page("Fejl: Ugyldig description.")
+
+        if not validate_vlan_name(vlan_name):
+            return render_page("Fejl: Ugyldigt VLAN-navn.")
 
         if mode == "access":
             vlan_id = request.form.get("vlan_id", "").strip()
@@ -307,11 +328,13 @@ def index():
                 timeout=120,
                 check=False,
             )
+
             output = (
                 f"EXIT CODE: {result.returncode}\n\n"
                 f"STDOUT:\n{result.stdout}\n\n"
                 f"STDERR:\n{result.stderr}"
             )
+
         except subprocess.TimeoutExpired:
             output = "Fejl: Ansible-jobbet tog for lang tid."
         except Exception as exc:
