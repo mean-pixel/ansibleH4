@@ -43,7 +43,8 @@ def run_switch_show_commands():
         "all",
         "-i", "inventory/hosts.yml",
         "-m", "cisco.ios.ios_command",
-        "-a", '{"commands":["show vlan brief","show interfaces trunk"]}',
+        "-a",
+        '{"commands":["show vlan brief","show interfaces trunk","show running-config | section ^interface"]}',
     ]
 
     try:
@@ -67,14 +68,8 @@ def run_switch_show_commands():
 
 
 def extract_stdout_blocks(ansible_output):
-    """
-    Henter 'stdout' blokkene ud af Ansible-output.
-    ios_command returnerer typisk noget med "stdout": [...] og "stdout_lines": [...]
-    Vi bruger stdout for at få den rå CLI tekst.
-    """
     blocks = []
 
-    # Prøv først at finde JSON-lignende stdout arrays
     stdout_match = re.search(r'"stdout":\s*\[(.*?)\]\s*,\s*"stdout_lines"', ansible_output, re.DOTALL)
     if stdout_match:
         raw = "[" + stdout_match.group(1) + "]"
@@ -85,27 +80,6 @@ def extract_stdout_blocks(ansible_output):
         except Exception:
             pass
 
-    # fallback: hvis stdout ligger mere "løst" i output
-    current_block = []
-    capture = False
-
-    for line in ansible_output.splitlines():
-        if '"stdout": [' in line:
-            capture = True
-            continue
-
-        if capture and '"stdout_lines": [' in line:
-            if current_block:
-                blocks.append("\n".join(current_block))
-            break
-
-        if capture:
-            cleaned = line.strip().rstrip(",")
-            cleaned = cleaned.strip('"')
-            cleaned = cleaned.replace("\\n", "\n").replace('\\"', '"')
-            if cleaned:
-                current_block.append(cleaned)
-
     return blocks
 
 
@@ -113,8 +87,6 @@ def parse_vlans(vlan_text):
     vlans = []
 
     for line in vlan_text.splitlines():
-        # eksempel:
-        # 7    TEST    active    Gi1/0/10, Gi1/0/24
         match = re.match(r"^\s*(\d+)\s+(\S+)\s+(\S+)\s*(.*)$", line)
         if match:
             vlan_id = match.group(1)
@@ -122,7 +94,6 @@ def parse_vlans(vlan_text):
             status = match.group(3)
             ports = match.group(4).strip()
 
-            # skip gamle reserverede VLANs
             if vlan_id not in ["1002", "1003", "1004", "1005"]:
                 vlans.append({
                     "id": vlan_id,
@@ -134,7 +105,7 @@ def parse_vlans(vlan_text):
     return vlans
 
 
-def parse_trunks(trunk_text):
+def parse_active_trunks(trunk_text):
     trunks = []
     lines = trunk_text.splitlines()
 
@@ -161,8 +132,6 @@ def parse_trunks(trunk_text):
             if not stripped or stripped.startswith("Port"):
                 continue
 
-            # eksempel:
-            # Gi1/0/11  on  802.1q  trunking  1
             parts = stripped.split()
             if len(parts) >= 5:
                 port = parts[0]
@@ -183,8 +152,6 @@ def parse_trunks(trunk_text):
             if not stripped or stripped.startswith("Port"):
                 continue
 
-            # eksempel:
-            # Gi1/0/11  1,7
             parts = stripped.split(None, 1)
             if len(parts) == 2:
                 port = parts[0]
@@ -198,34 +165,76 @@ def parse_trunks(trunk_text):
     return trunks
 
 
+def parse_configured_trunks(config_text):
+    configured_trunks = []
+
+    blocks = re.split(r"\n(?=interface )", config_text)
+
+    for block in blocks:
+        block = block.strip()
+        if not block.startswith("interface "):
+            continue
+
+        lines = block.splitlines()
+        interface_name = lines[0].replace("interface ", "").strip()
+
+        mode = None
+        allowed_vlans = "-"
+        description = "-"
+
+        for line in lines[1:]:
+            stripped = line.strip()
+
+            if stripped.startswith("description "):
+                description = stripped.replace("description ", "", 1).strip()
+
+            if stripped == "switchport mode trunk":
+                mode = "trunk"
+
+            if stripped.startswith("switchport trunk allowed vlan "):
+                allowed_vlans = stripped.replace("switchport trunk allowed vlan ", "", 1).strip()
+
+        if mode == "trunk":
+            configured_trunks.append({
+                "port": interface_name,
+                "description": description,
+                "allowed_vlans": allowed_vlans
+            })
+
+    return configured_trunks
+
+
 def get_switch_state():
     raw_output, error = run_switch_show_commands()
     if error:
-        return [], [], error
+        return [], [], [], error
 
     stdout_blocks = extract_stdout_blocks(raw_output)
 
-    if len(stdout_blocks) < 2:
-        return [], [], "Kunne ikke parse switch-output korrekt."
+    if len(stdout_blocks) < 3:
+        return [], [], [], "Kunne ikke parse switch-output korrekt."
 
     vlan_text = stdout_blocks[0]
     trunk_text = stdout_blocks[1]
+    config_text = stdout_blocks[2]
 
     vlans = parse_vlans(vlan_text)
-    trunks = parse_trunks(trunk_text)
+    active_trunks = parse_active_trunks(trunk_text)
+    configured_trunks = parse_configured_trunks(config_text)
 
-    return vlans, trunks, None
+    return vlans, configured_trunks, active_trunks, None
 
 
 def render_page(output=None):
-    vlans, trunks, state_error = get_switch_state()
+    vlans, configured_trunks, active_trunks, state_error = get_switch_state()
     return render_template(
         "index.html",
         output=output,
         switches=SWITCHES,
         ports=PORTS,
         vlans=vlans,
-        trunks=trunks,
+        configured_trunks=configured_trunks,
+        active_trunks=active_trunks,
         state_error=state_error,
     )
 
