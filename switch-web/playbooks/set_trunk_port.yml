@@ -8,7 +8,7 @@
       cisco.ios.ios_config:
         parents: "interface {{ interface }}"
         lines:
-          - description {{ description }
+          - description {{ description }}
           - no spanning-tree portfast
           - no spanning-tree bpduguard enable
           - switchport mode trunk
