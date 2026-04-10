@@ -9,7 +9,7 @@
         parents: "interface {{ interface }}"
         lines:
           - description {{ description }}
-          - no switcport access vlan
+          - no switchport access vlan
           - no spanning-tree portfast
           - no spanning-tree bpduguard enable
           - switchport mode trunk
