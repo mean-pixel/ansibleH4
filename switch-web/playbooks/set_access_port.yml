@@ -22,6 +22,8 @@
         parents: "interface {{ interface }}"
         lines:
           - description {{ description }}
+          - no switchport trunk allowed vlan
+          - no switchport mode trunk
           - switchport mode access
           - switchport access vlan {{ vlan_id }}
           - spanning-tree portfast
