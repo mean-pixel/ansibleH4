@@ -9,6 +9,9 @@
         parents: "interface {{ interface }}"
         lines:
           - description {{ description }}
+          - no switchport trunk allowed vlan
+          - no spanning-tree portfast
+          - no spanning-tree bpduguard enable
           - switchport mode trunk
           - switchport trunk allowed vlan {{ allowed_vlans }}
           - no shutdown
